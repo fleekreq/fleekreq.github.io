@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tellgence — Sales & Profit Forecast</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --orange:        #E8490F;
+    --orange-dim:    #c03d0c;
+    --orange-glow:   rgba(232,73,15,0.15);
+    --orange-light:  rgba(232,73,15,0.08);
+    /* Warm dark — deep amber-tinted charcoal pulled from Tellgence brand */
+    --bg:            #181410;
+    --surface:       #211d18;
+    --surface2:      #2a2520;
+    --surface3:      #33302a;
+    --border:        rgba(255,220,160,0.09);
+    --border-orange: rgba(232,73,15,0.32);
+    --text:          #f0e8d8;
+    --text-dim:      #b0a090;
+    --text-dimmer:   #7a6e60;
+    --green:         #3dba72;
+    --red:           #e05050;
+    --input-bg:      #1e1a15;
+    --gold:          #c89a4a;
+    --gold-light:    rgba(200,154,74,0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle warm grain */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 80% 0%, rgba(200,154,74,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 100%, rgba(232,73,15,0.04) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── NAV ─────────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 56px;
+    background: rgba(24,20,16,0.94);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo svg { height: 26px; width: auto; }
+  .nav-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--gold);
+    background: var(--gold-light); border: 1px solid rgba(200,154,74,0.25);
+    padding: 4px 10px; border-radius: 4px;
+  }
+
+  /* ── LAYOUT ──────────────────────────────────────────────────────── */
+  .main-grid {
+    display: grid; grid-template-columns: 320px 1fr; gap: 0;
+    min-height: calc(100vh - 56px);
+    transition: grid-template-columns 0.32s cubic-bezier(0.4,0,0.2,1);
+  }
+  .main-grid.sidebar-collapsed {
+    grid-template-columns: 0px 1fr;
+  }
+
+  /* ── SIDEBAR ─────────────────────────────────────────────────────── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 22px 20px 28px;
+    position: sticky; top: 56px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: padding 0.32s cubic-bezier(0.4,0,0.2,1);
+    min-width: 0;
+  }
+  .main-grid.sidebar-collapsed .sidebar {
+    padding: 0;
+    border-right: none;
+    overflow: hidden;
+  }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+
+  /* ── TOGGLE BUTTON ───────────────────────────────────────────────── */
+  .sidebar-toggle {
+    position: fixed;
+    top: 50%;
+    left: 320px;
+    transform: translateY(-50%) translateX(-50%);
+    z-index: 200;
+    width: 24px; height: 48px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: left 0.32s cubic-bezier(0.4,0,0.2,1), background 0.2s;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+  }
+  .sidebar-toggle:hover { background: var(--surface3); }
+  .sidebar-toggle svg {
+    transition: transform 0.32s cubic-bezier(0.4,0,0.2,1);
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .sidebar-collapsed .sidebar-toggle,
+  body.sidebar-collapsed .sidebar-toggle { left: 0; }
+  body.sidebar-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+
+  .sidebar-section { margin-bottom: 24px; }
+
+  .sidebar-section-title {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--orange);
+    margin-bottom: 12px; padding-bottom: 7px;
+    border-bottom: 1px solid var(--border-orange);
+  }
+
+  .field { margin-bottom: 12px; }
+
+  .field label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--text-dim); margin-bottom: 4px; letter-spacing: 0.02em;
+  }
+
+  /* ── Universal input / select styling — applies everywhere in sidebar ── */
+  .sidebar input,
+  .sidebar select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px; font-weight: 600;
+    padding: 7px 10px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    /* kill spinners on number inputs */
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    color-scheme: dark;
+  }
+  .sidebar input::-webkit-outer-spin-button,
+  .sidebar input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .sidebar input:focus,
+  .sidebar select:focus {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 3px var(--orange-glow);
+  }
+  /* Select: custom chevron, no native arrow */
+  .sidebar select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b0a090' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-color: var(--input-bg);
+    padding-right: 32px;
+  }
+  .sidebar select option { background: #1e1a15; color: #f0e8d8; font-weight: 600; }
+  /* hc-input inside table — keep its own override */
+  .hc-input {
+    width: 42px !important; padding: 3px 5px !important;
+    text-align: center; font-size: 12px !important;
+    background: rgba(232,73,15,0.07) !important;
+    border-color: var(--border-orange) !important;
+    color: var(--orange) !important;
+  }
+
+  .field .hint {
+    font-size: 10px; color: var(--text-dim); margin-top: 3px; line-height: 1.4;
+  }
+
+  /* inline label for working days */
+  .field-inline {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  }
+  .field-inline > div { flex: 1; }
+  .field-inline label {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    margin-bottom: 4px; display: block;
+  }
+  .days-badge {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px;
+    font-size: 12px; font-weight: 700; color: var(--text-dim);
+    white-space: nowrap; margin-top: 18px;
+  }
+
+  .pkr-group { display: grid; grid-template-columns: 1fr auto; gap: 7px; align-items: end; margin-bottom: 12px; }
+  .pkr-group .usd-display {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px;
+    font-size: 11px; color: var(--gold); font-weight: 700;
+    white-space: nowrap; min-width: 64px; text-align: center;
+  }
+  .pkr-group label {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    display: block; margin-bottom: 4px;
+  }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 16px; }
+
+  .role-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--gold);
+    margin-bottom: 10px; margin-top: 2px;
+  }
+
+  /* Buttons */
+  .download-btn {
+    width: 100%; background: var(--orange); color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    border: none; border-radius: 8px; padding: 13px 16px;
+    cursor: pointer; transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin-top: 6px; box-shadow: 0 4px 18px rgba(232,73,15,0.28);
+  }
+  .download-btn:hover { background: var(--orange-dim); box-shadow: 0 6px 24px rgba(232,73,15,0.42); transform: translateY(-1px); }
+  .download-btn:active { transform: translateY(0); }
+
+  .reset-btn {
+    width: 100%; background: transparent;
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-dim); font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 9px 12px; cursor: pointer; margin-top: 8px;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .reset-btn:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-light); }
+
+  /* ── CONTENT ─────────────────────────────────────────────────────── */
+  .content { padding: 24px 24px 48px; overflow-x: auto; }
+
+  /* ── KPI CARDS ───────────────────────────────────────────────────── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
+
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; position: relative; overflow: hidden;
+    transition: border-color 0.25s;
+  }
+  .kpi-card:hover { border-color: rgba(200,154,74,0.3); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--orange), var(--gold));
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .kpi-card:hover::before { opacity: 1; }
+
+  .kpi-label {
+    font-size: 9px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 7px;
+  }
+  .kpi-value {
+    font-size: 22px; font-weight: 800; color: var(--text);
+    line-height: 1; margin-bottom: 4px;
+  }
+  .kpi-value.positive { color: var(--green); }
+  .kpi-value.negative { color: var(--red); }
+  .kpi-value.orange   { color: var(--orange); }
+  .kpi-sub { font-size: 10px; color: var(--text-dimmer); }
+
+  /* ── CHARTS ──────────────────────────────────────────────────────── */
+  .chart-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  }
+  .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+  .chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .chart-sub   { font-size: 11px; color: var(--text-dim); }
+  .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .legend-item  { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .legend-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .chart-wrap   { position: relative; height: 230px; }
+  .charts-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+
+  /* ── TABLE ───────────────────────────────────────────────────────── */
+  .table-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .table-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .table-sub   { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .table-wrap  { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+  thead tr { background: var(--surface2); }
+  thead th {
+    padding: 9px 12px; text-align: right;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim);
+    white-space: nowrap; border-bottom: 1px solid var(--border);
+  }
+  thead th:first-child { text-align: left; min-width: 200px; }
+  thead th.cumul-h {
+    background: var(--surface3); color: var(--gold); border-left: 1px solid var(--border);
+  }
+
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
+  tbody tr:hover { background: rgba(255,200,100,0.02); }
+
+  tbody tr.section-row { background: var(--surface3); }
+  tbody tr.section-row td {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--orange);
+    padding: 7px 14px 5px; border-bottom: 1px solid var(--border-orange);
+  }
+  tbody tr.total-row td {
+    background: rgba(232,73,15,0.07); font-weight: 600; color: var(--text);
+    border-top: 1px solid var(--border-orange);
+  }
+  tbody tr.net-row td {
+    background: rgba(232,73,15,0.11); font-weight: 800; font-size: 12px;
+  }
+
+  td { padding: 8px 12px; text-align: right; color: var(--text-dim); white-space: nowrap; }
+  td:first-child { text-align: left; color: var(--text); padding-left: 18px; }
+  td.month-1 { color: var(--text-dimmer); font-style: italic; }
+  .positive-val { color: var(--green); }
+  .negative-val { color: var(--red); }
+  td.cumul { background: var(--surface3); font-weight: 600; color: var(--text); border-left: 1px solid var(--border); }
+
+  .hc-input {
+    background: rgba(232,73,15,0.07); border: 1px solid var(--border-orange);
+    border-radius: 4px; color: var(--orange);
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 700;
+    padding: 3px 5px; width: 42px; text-align: center; outline: none;
+    appearance: textfield; -moz-appearance: textfield;
+  }
+  .hc-input::-webkit-outer-spin-button,
+  .hc-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .hc-input:focus { border-color: var(--orange); box-shadow: 0 0 0 2px var(--orange-glow); }
+
+  /* ── UNIT ECONOMICS ──────────────────────────────────────────────── */
+  .ue-section { margin-top: 20px; display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+  .ue-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .ue-card-header {
+    padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--orange);
+  }
+  .ue-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .ue-row:last-child { border-bottom: none; }
+  .ue-row-label { color: var(--text-dim); }
+  .ue-row-val { font-weight: 700; font-size: 13px; color: var(--text); }
+  .ue-row.highlight { background: rgba(232,73,15,0.07); border-bottom: 1px solid var(--border-orange); }
+  .ue-row.highlight .ue-row-val { color: var(--orange); font-size: 15px; }
+
+  /* ── FOOTER ──────────────────────────────────────────────────────── */
+  .footer {
+    border-top: 1px solid var(--border); padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: var(--text-dimmer); flex-wrap: wrap; gap: 8px;
+  }
+  .footer-prepared {
+    color: var(--gold); font-weight: 600; letter-spacing: 0.04em;
+  }
+
+  /* ── ANIMATIONS ──────────────────────────────────────────────────── */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .kpi-card { animation: fadeUp 0.35s ease both; }
+  .kpi-card:nth-child(1) { animation-delay:0.04s; }
+  .kpi-card:nth-child(2) { animation-delay:0.08s; }
+  .kpi-card:nth-child(3) { animation-delay:0.12s; }
+  .kpi-card:nth-child(4) { animation-delay:0.16s; }
+
+  @media (max-width: 1100px) {
+    .main-grid { grid-template-columns: 290px 1fr; }
+    .kpi-grid  { grid-template-columns: repeat(2,1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .ue-section { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <svg width="132" height="40" viewBox="0 0 132 40" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#c)"><path d="M4.66 12.35C5.65 13.71 5.56 25.48 4.76 27.36C3.59 27.87 3.73 12.70 4.63 12.35H4.66ZM9.10 6.75C9.03 6.75 8.92 6.91 8.83 7.22C8.65 7.86 8.53 8.74 8.45 9.55C8.22 11.64 8.08 14.86 8.04 18.24C7.99 22.59 8.14 27.27 8.42 30.06C8.54 31.01 8.60 32.24 8.99 32.96C10.69 33.39 10.44 7.04 9.12 6.76H9.10ZM14.04 3.99C12.11 5.20 12.04 35.80 14.17 35.75C16.00 33.12 16.02 5.82 14.07 3.99H14.04ZM19.44 3.08C17.42 4.81 17.51 21.06 17.67 25.08C17.80 27.87 18.24 37.65 19.69 36.59C21.86 33.30 21.98 5.20 19.47 3.08H19.44ZM34.26 12.35C33.35 12.70 33.22 27.87 34.38 27.36C35.19 25.48 35.29 13.71 34.29 12.35H34.26ZM29.79 6.75C29.72 6.75 29.60 6.91 29.52 7.22C29.33 7.86 29.22 8.74 29.13 9.55C28.91 11.64 28.76 14.86 28.72 18.24C28.67 22.59 28.82 27.27 29.10 30.06C29.22 31.01 29.29 32.24 29.67 32.96C31.38 33.39 31.13 7.04 29.80 6.76H29.79ZM24.85 3.99C22.92 5.20 22.85 35.80 24.98 35.75C26.80 33.12 26.83 5.82 24.88 3.99H24.85Z" fill="#E05A24"/></g><path d="M49.85 28V13.17H51.92V28H49.85ZM44.66 14.62V12.73H57.09V14.62H44.66ZM60.70 28.22C59.66 28.22 58.72 27.99 57.89 27.52C57.05 27.03 56.39 26.38 55.91 25.56C55.42 24.74 55.18 23.81 55.18 22.76C55.18 21.74 55.41 20.81 55.88 19.99C56.37 19.17 57.01 18.53 57.82 18.06C58.64 17.57 59.56 17.33 60.57 17.33C61.54 17.33 62.39 17.55 63.12 17.99C63.87 18.43 64.45 19.04 64.86 19.82C65.28 20.59 65.50 21.47 65.50 22.46C65.50 22.60 65.49 22.76 65.48 22.94C65.46 23.10 65.43 23.29 65.39 23.51H56.57V21.86H64.33L63.61 22.50C63.61 21.80 63.48 21.20 63.23 20.72C62.98 20.22 62.63 19.84 62.18 19.57C61.72 19.30 61.17 19.16 60.53 19.16C59.85 19.16 59.26 19.30 58.74 19.60C58.23 19.89 57.83 20.30 57.56 20.83C57.28 21.36 57.14 21.98 57.14 22.70C57.14 23.43 57.28 24.08 57.58 24.63C57.87 25.18 58.29 25.60 58.83 25.91C59.37 26.20 59.00 26.35 60.70 26.35C61.29 26.35 61.82 26.25 62.31 26.04C62.81 25.84 63.23 25.53 63.58 25.12L64.86 26.42C64.36 27.00 63.74 27.45 63.01 27.76C62.29 28.07 61.52 28.22 60.70 28.22ZM67.22 28V12.29H69.20V28H67.22ZM71.65 28V12.29H73.63V28H71.65ZM80.42 32.60C79.35 32.60 78.40 32.40 77.56 32.00C76.74 31.61 76.08 31.05 75.58 30.33L76.86 29.03C77.29 29.58 77.79 29.99 78.38 30.27C78.97 30.56 79.66 30.71 80.47 30.71C81.54 30.71 82.38 30.42 83.00 29.85C83.63 29.29 83.94 28.54 83.94 27.58V24.99L84.30 22.63L83.94 20.30V17.55H85.92V27.58C85.92 28.58 85.69 29.45 85.22 30.20C84.77 30.95 84.12 31.53 83.28 31.96C82.46 32.39 81.51 32.60 80.42 32.60ZM80.42 27.82C79.47 27.82 78.61 27.60 77.85 27.14C77.10 26.69 76.51 26.06 76.07 25.27C75.63 24.47 75.41 23.56 75.41 22.57C75.41 21.57 75.63 20.68 76.07 19.90C76.51 19.11 77.10 18.49 77.85 18.03C78.61 17.56 79.47 17.33 80.42 17.33C81.25 17.33 81.97 17.49 82.60 17.81C83.23 18.14 83.73 18.59 84.10 19.18C84.48 19.75 84.69 20.42 84.71 21.20V23.97C84.67 24.74 84.46 25.41 84.08 25.00C83.71 26.57 83.21 27.02 82.58 27.34C81.95 27.66 81.23 27.82 80.42 27.82ZM80.82 25.95C81.47 25.95 82.03 25.81 82.51 25.54C83.01 25.26 83.39 24.87 83.66 24.37C83.92 23.86 84.05 23.26 84.05 22.59C84.05 21.91 83.92 21.33 83.64 20.83C83.37 20.31 82.00 19.92 82.51 19.64C82.03 19.35 81.46 19.20 80.80 19.20C80.14 19.20 79.56 19.35 79.06 19.64C78.56 19.92 78.17 20.31 77.87 20.83C77.59 21.33 77.45 21.91 77.45 22.57C77.45 23.23 77.59 23.81 77.87 24.33C78.17 24.84 78.56 25.24 79.06 25.54C79.57 25.81 80.16 25.95 80.82 25.95ZM93.23 28.22C92.19 28.22 91.25 27.99 90.41 27.52C89.58 27.03 88.92 26.38 88.43 25.56C87.95 24.74 87.71 23.81 87.71 22.76C87.71 21.74 87.94 20.81 88.41 19.99C88.90 19.17 89.54 18.53 90.35 18.06C91.17 17.57 92.09 17.33 93.10 17.33C94.07 17.33 94.92 17.55 95.65 17.99C96.40 18.43 96.98 19.04 97.39 19.82C97.81 20.59 98.03 21.47 98.03 22.46C98.03 22.60 98.02 22.76 98.00 22.94C97.99 23.10 97.96 23.29 97.92 23.51H89.09V21.86H96.86L96.13 22.50C96.13 21.80 96.01 21.20 95.76 20.72C95.51 20.22 95.16 19.84 94.70 19.57C94.25 19.30 93.70 19.16 93.05 19.16C92.38 19.16 91.79 19.30 91.27 19.60C90.76 19.89 90.36 20.30 90.08 20.83C89.81 21.36 89.67 21.98 89.67 22.70C89.67 23.43 89.81 24.08 90.11 24.63C90.40 25.18 90.82 25.60 91.36 25.91C91.90 26.20 92.53 26.35 93.23 26.35C93.82 26.35 94.35 26.25 94.84 26.04C95.34 25.84 95.76 25.53 96.11 25.12L97.39 26.42C96.89 27.00 96.27 27.45 95.54 27.76C94.82 28.07 94.05 28.22 93.23 28.22ZM107.14 28V21.91C107.14 21.11 106.89 20.46 106.39 19.95C105.89 19.43 105.25 19.18 104.45 19.18C103.93 19.18 103.46 19.30 103.05 19.53C102.64 19.76 102.31 20.09 102.08 20.50C101.84 20.91 101.73 21.38 101.73 21.91L100.91 21.44C100.91 20.65 101.09 19.95 101.44 19.33C101.79 18.72 102.28 18.23 102.91 17.88C103.54 17.51 104.26 17.33 105.05 17.33C105.84 17.33 106.54 17.53 107.14 17.92C107.75 18.32 108.24 18.84 108.59 19.49C108.94 20.12 109.12 20.79 109.12 21.51V28H107.14ZM99.75 28V17.55H101.73V28H99.75ZM116.13 28.22C115.11 28.22 114.17 27.98 113.34 27.49C112.52 27.01 111.86 26.36 111.38 25.54C110.91 24.70 110.68 23.78 110.68 22.76C110.68 21.74 110.91 20.81 111.38 19.99C111.86 19.17 112.52 18.53 113.34 18.06C114.17 17.57 115.11 17.33 116.13 17.33C116.94 17.33 117.69 17.48 118.38 17.79C119.07 18.09 119.66 18.52 120.16 19.09L118.84 20.41C118.52 20.03 118.12 19.74 117.65 19.55C117.20 19.35 116.69 19.24 116.13 19.24C115.47 19.24 114.89 19.40 114.37 19.71C113.86 20.00 113.46 20.41 113.16 20.94C112.87 21.47 112.72 22.07 112.72 22.76C112.72 23.45 112.87 24.06 113.16 24.59C113.46 25.12 113.86 25.54 114.37 25.84C114.89 26.15 115.47 26.31 116.13 26.31C116.69 26.31 117.20 26.21 117.65 26.02C118.12 25.81 118.52 25.52 118.86 25.14L120.16 26.46C119.67 27.02 119.08 27.45 118.38 27.76C117.69 28.07 116.94 28.22 116.13 28.22ZM126.31 28.22C125.27 28.22 124.33 27.99 123.49 27.52C122.66 27.03 121.99 26.38 121.51 25.56C121.03 24.74 120.79 23.81 120.79 22.76C120.79 21.74 121.02 20.81 121.49 19.99C121.97 19.17 122.62 18.53 123.43 18.06C124.25 17.57 125.16 17.33 126.18 17.33C127.14 17.33 127.99 17.55 128.73 17.99C129.48 18.43 130.05 19.04 130.47 19.82C130.89 20.59 131.10 21.47 131.10 22.46C131.10 22.60 131.10 22.76 131.08 22.94C131.07 23.10 131.04 23.29 130.99 23.51H122.17V21.86H129.94L129.21 22.50C129.21 21.80 129.09 21.20 128.84 20.72C128.59 20.22 128.24 19.84 127.78 19.57C127.33 19.30 126.78 19.16 126.13 19.16C125.46 19.16 124.86 19.30 124.35 19.60C123.84 19.89 123.44 20.30 123.16 20.83C122.88 21.36 122.74 21.98 122.74 22.70C122.74 23.43 122.89 24.08 123.18 24.63C123.48 25.18 123.89 25.60 124.44 25.91C124.98 26.20 125.60 26.35 126.31 26.35C126.89 26.35 127.43 26.25 127.91 26.04C128.41 25.84 128.84 25.53 129.19 25.12L130.47 26.42C129.97 27.00 129.35 27.45 128.62 27.76C127.90 28.07 127.13 28.22 126.31 28.22Z" fill="#EDF0E8"/><defs><clipPath id="c"><rect width="31.1" height="33.59" fill="white" transform="translate(3.92 3.08)"/></clipPath></defs></svg>
+  </div>
+  <span class="nav-badge">Internal Forecast Tool</span>
+</nav>
+
+<div class="main-grid" id="mainGrid">
+
+  <!-- Sidebar toggle tab -->
+  <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+
+  <!-- ── SIDEBAR ──────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Forecast Period</div>
+      <div class="field-inline">
+        <div>
+          <label>Start Month</label>
+          <select id="startMonth">
+            <option value="0">January</option><option value="1">February</option>
+            <option value="2">March</option><option value="3">April</option>
+            <option value="4">May</option><option value="5" selected>June</option>
+            <option value="6">July</option><option value="7">August</option>
+            <option value="8">September</option><option value="9">October</option>
+            <option value="10">November</option><option value="11">December</option>
+          </select>
+        </div>
+        <div>
+          <label>Start Year</label>
+          <input type="text" id="startYear" value="2026">
+        </div>
+      </div>
+      <div class="field">
+        <label>Number of months to forecast</label>
+        <input type="number" id="numMonths" value="7" min="1" max="60">
+        <div class="hint">Enter any number — table and charts update automatically</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">A — Calling Activity</div>
+      <div class="field-inline">
+        <div>
+          <label>Calls per caller / day</label>
+          <input type="text" id="callsPerDay" value="100">
+        </div>
+        <div class="days-badge">× 22 days</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">B — Conversion Funnel</div>
+      <div class="field">
+        <label>Trial signup rate (%)</label>
+        <input type="number" id="trialRate" value="20" min="0" max="100" step="0.5">
+        <div class="hint">% of calls that sign up for free trial</div>
+      </div>
+      <div class="field">
+        <label>Trial-to-paid conversion (%)</label>
+        <input type="number" id="convRate" value="20" min="0" max="100" step="0.5">
+        <div class="hint">% of trials that pay the following month</div>
+      </div>
+      <div class="field">
+        <label>Monthly churn rate (%)</label>
+        <input type="number" id="churnRate" value="20" min="0" max="100" step="0.5">
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">C — Revenue & Margin</div>
+      <div class="field">
+        <label>Monthly plan price (USD)</label>
+        <input type="number" id="planPrice" value="79" min="1">
+        <div class="hint">Starter plan — minimum package</div>
+      </div>
+      <div class="field">
+        <label>Gross margin (%)</label>
+        <input type="number" id="grossMargin" value="39.2" min="0" max="100" step="0.1">
+        <div class="hint">$0.392 kept per $1 revenue before team costs</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">D — Team Compensation</div>
+      <div class="field">
+        <label>PKR / USD exchange rate</label>
+        <input type="number" id="fxRate" value="280" min="1">
+      </div>
+      <hr class="divider">
+
+      <div class="role-label">Cold Callers</div>
+      <div class="pkr-group">
+        <div>
+          <label>Base salary / caller (PKR)</label>
+          <input type="text" id="callerSalaryPKR" value="150000">
+        </div>
+        <div class="usd-display" id="callerSalaryUSD">$536</div>
+      </div>
+      <div class="field">
+        <label>Commission / paid signup (USD)</label>
+        <input type="number" id="commission" value="5.00" min="0" step="0.01">
+        <div class="hint">Paid after trial converts to paid account</div>
+      </div>
+
+      <hr class="divider">
+      <div class="role-label">Lead Gen Specialists</div>
+      <div class="pkr-group">
+        <div>
+          <label>Base salary / specialist (PKR)</label>
+          <input type="text" id="lgSalaryPKR" value="150000">
+        </div>
+        <div class="usd-display" id="lgSalaryUSD">$536</div>
+      </div>
+      <div class="field">
+        <label>Commission / confirmed meeting (USD)</label>
+        <input type="number" id="lgCommission" value="5.00" min="0" step="0.01">
+        <div class="hint">Paid per qualified meeting booked</div>
+      </div>
+      <div class="field">
+        <label>Confirmed meetings / specialist / month</label>
+        <input type="number" id="lgMeetings" value="20" min="0">
+        <div class="hint">Used to calculate total lead gen commission cost</div>
+      </div>
+    </div>
+
+    <button class="download-btn" onclick="downloadExcel()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Excel
+    </button>
+
+    <button class="reset-btn" onclick="resetDefaults()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+      Reset to Default Values
+    </button>
+
+  </aside>
+
+  <!-- ── CONTENT ───────────────────────────────────────────────────── -->
+  <main class="content">
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Forecast Revenue</div>
+        <div class="kpi-value orange" id="kpi-revenue">$0</div>
+        <div class="kpi-sub">Cumulative MRR collected</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Customers — Final Month</div>
+        <div class="kpi-value" id="kpi-customers">0</div>
+        <div class="kpi-sub">Active paying accounts</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Break-even (customers)</div>
+        <div class="kpi-value" id="kpi-breakeven">0</div>
+        <div class="kpi-sub">Paying customers to cover team cost</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Net Profit</div>
+        <div class="kpi-value" id="kpi-profit">$0</div>
+        <div class="kpi-sub">After all team costs</div>
+      </div>
+    </div>
+
+    <!-- MAIN CHART -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Revenue vs. Team Cost vs. Net Profit</div>
+          <div class="chart-sub" id="chartSubLabel">Updates live as you change inputs</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#E8490F"></div>MRR</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#6b5e50"></div>Team Cost</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3dba72"></div>Net Profit</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+    </div>
+
+    <!-- TWO SMALLER CHARTS -->
+    <div class="charts-row">
+      <div class="chart-section" style="margin-bottom:0">
+        <div class="chart-header" style="margin-bottom:14px">
+          <div>
+            <div class="chart-title">Customer Growth</div>
+            <div class="chart-sub">Active paying customers by month</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:170px"><canvas id="customerChart"></canvas></div>
+      </div>
+      <div class="chart-section" style="margin-bottom:0">
+        <div class="chart-header" style="margin-bottom:14px">
+          <div>
+            <div class="chart-title">Cost Breakdown</div>
+            <div class="chart-sub">Where the money goes each month</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:170px"><canvas id="costChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- FORECAST TABLE -->
+    <div class="table-section">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Detailed Monthly Forecast</div>
+          <div class="table-sub">Edit headcount in the orange cells &nbsp;·&nbsp; All other values auto-calculate</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- UNIT ECONOMICS -->
+    <div class="ue-section">
+      <div class="ue-card">
+        <div class="ue-card-header">Per Customer</div>
+        <div class="ue-row highlight"><span class="ue-row-label">Revenue / month</span><span class="ue-row-val" id="ue-rev">$79</span></div>
+        <div class="ue-row"><span class="ue-row-label">Infrastructure cost</span><span class="ue-row-val" id="ue-infra">$48</span></div>
+        <div class="ue-row highlight"><span class="ue-row-label">Gross profit / customer</span><span class="ue-row-val" id="ue-gp">$31</span></div>
+      </div>
+      <div class="ue-card">
+        <div class="ue-card-header">Monthly Team Cost (Month 1)</div>
+        <div class="ue-row"><span class="ue-row-label">Cold caller salaries</span><span class="ue-row-val" id="ue-csal">—</span></div>
+        <div class="ue-row"><span class="ue-row-label">Cold caller commissions</span><span class="ue-row-val" id="ue-ccomm">—</span></div>
+        <div class="ue-row"><span class="ue-row-label">Lead gen salaries</span><span class="ue-row-val" id="ue-lgsal">—</span></div>
+        <div class="ue-row"><span class="ue-row-label">Lead gen commissions</span><span class="ue-row-val" id="ue-lgcomm">—</span></div>
+        <div class="ue-row highlight"><span class="ue-row-label">Total base team cost</span><span class="ue-row-val" id="ue-total">—</span></div>
+      </div>
+      <div class="ue-card">
+        <div class="ue-card-header">Break-even</div>
+        <div class="ue-row highlight"><span class="ue-row-label">Customers needed</span><span class="ue-row-val" id="ue-be">—</span></div>
+        <div class="ue-row"><span class="ue-row-label">Gross profit per extra customer</span><span class="ue-row-val" id="ue-above">—</span></div>
+        <div class="ue-row"><span class="ue-row-label">Annual value per customer</span><span class="ue-row-val" id="ue-annual">—</span></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="footer">
+  <span>Tellgence &nbsp;·&nbsp; Internal Forecast Tool &nbsp;·&nbsp; Confidential</span>
+  <span class="footer-prepared">Prepared by Zain Ali</span>
+  <span>All figures in USD &nbsp;·&nbsp; Based on Starter plan ($79/mo) &nbsp;·&nbsp; Month 1 = free trial, $0 revenue</span>
+</div>
+
+<script>
+// ── DEFAULTS ──────────────────────────────────────────────────────────────
+const DEFAULTS = {
+  startMonth:     5,
+  startYear:      2026,
+  numMonths:      7,
+  callsPerDay:    100,
+  trialRate:      20,
+  convRate:       20,
+  churnRate:      20,
+  planPrice:      79,
+  grossMargin:    39.2,
+  fxRate:         280,
+  callerSalaryPKR:150000,
+  commission:     5.00,
+  lgSalaryPKR:    150000,
+  lgCommission:   5.00,
+  lgMeetings:     20,
+};
+
+const WORKING_DAYS = 22;
+
+// Headcount store: { callers: [], lg: [] } keyed by month index
+let hcStore = {};
+
+function hcKey(m) { return m; }
+function getHC(m, role) {
+  const k = role + m;
+  return hcStore[k] !== undefined ? hcStore[k] : 1;
+}
+function setHC(m, role, v) { hcStore[role + m] = parseInt(v) || 0; }
+
+// ── CHART INSTANCES ───────────────────────────────────────────────────────
+let mainChart, customerChart, costChart;
+
+const CHART_OPTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#2a2520', borderColor: 'rgba(200,154,74,0.2)', borderWidth: 1,
+    titleColor: '#f0e8d8', bodyColor: '#b0a090', padding: 10,
+  }},
+  scales: {
+    x: { grid: { color: 'rgba(255,200,100,0.05)' }, ticks: { color: '#7a6e60', font: { family: 'Plus Jakarta Sans', size: 10 } } },
+    y: { grid: { color: 'rgba(255,200,100,0.05)' }, ticks: { color: '#7a6e60', font: { family: 'Plus Jakarta Sans', size: 10 },
+      callback: v => '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(0)+'k' : v.toFixed(0))
+    }}
+  }
+};
+
+function initCharts() {
+  const c1 = document.getElementById('mainChart').getContext('2d');
+  mainChart = new Chart(c1, {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label:'MRR',        data:[], backgroundColor:'rgba(232,73,15,0.7)',  borderRadius:3, order:2 },
+      { label:'Team Cost',  data:[], backgroundColor:'rgba(107,94,80,0.55)', borderRadius:3, order:2 },
+      { label:'Net Profit', data:[], type:'line', borderColor:'#3dba72',
+        backgroundColor:'rgba(61,186,114,0.08)', pointBackgroundColor:'#3dba72',
+        pointRadius:3, tension:0.4, fill:true, order:1 }
+    ]},
+    options: { ...CHART_OPTS, plugins: { ...CHART_OPTS.plugins, tooltip: { ...CHART_OPTS.plugins.tooltip,
+      callbacks: { label: ctx => ' ' + ctx.dataset.label + ': $' + fmt(ctx.raw) }
+    }}}
+  });
+
+  const c2 = document.getElementById('customerChart').getContext('2d');
+  customerChart = new Chart(c2, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label:'Customers', data:[],
+      borderColor:'#E8490F', backgroundColor:'rgba(232,73,15,0.08)',
+      pointBackgroundColor:'#E8490F', pointRadius:3, tension:0.4, fill:true
+    }]},
+    options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales,
+      y: { ...CHART_OPTS.scales.y, ticks: { ...CHART_OPTS.scales.y.ticks, callback: v => Math.round(v) } }
+    }, plugins: { ...CHART_OPTS.plugins, tooltip: { ...CHART_OPTS.plugins.tooltip,
+      callbacks: { label: ctx => ' ' + Math.round(ctx.raw) + ' customers' }
+    }}}
+  });
+
+  const c3 = document.getElementById('costChart').getContext('2d');
+  costChart = new Chart(c3, {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label:'Caller Salaries',    data:[], backgroundColor:'rgba(232,73,15,0.70)', borderRadius:3 },
+      { label:'Caller Commissions', data:[], backgroundColor:'rgba(232,73,15,0.45)', borderRadius:3 },
+      { label:'LG Salaries',        data:[], backgroundColor:'rgba(200,154,74,0.55)', borderRadius:3 },
+      { label:'LG Commissions',     data:[], backgroundColor:'rgba(200,154,74,0.30)', borderRadius:3 },
+    ]},
+    options: { ...CHART_OPTS, plugins: { ...CHART_OPTS.plugins, tooltip: { ...CHART_OPTS.plugins.tooltip,
+      callbacks: { label: ctx => ' ' + ctx.dataset.label + ': $' + fmt(ctx.raw) }
+    }},
+    scales: { ...CHART_OPTS.scales,
+      x: { ...CHART_OPTS.scales.x, stacked: true },
+      y: { ...CHART_OPTS.scales.y, stacked: true }
+    }}
+  });
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+const fmt  = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+const fmtN = n => Math.round(n).toLocaleString('en-US');
+const g    = id => parseFloat(document.getElementById(id).value) || 0;
+const gi   = id => parseInt(document.getElementById(id).value) || 0;
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function getMonthLabel(startMonthIdx, startYear, offset) {
+  const totalMonth = startMonthIdx + offset;
+  const yr  = startYear + Math.floor(totalMonth / 12);
+  const mo  = totalMonth % 12;
+  return MONTH_NAMES[mo] + " '" + String(yr).slice(2);
+}
+
+// ── COMPUTE ───────────────────────────────────────────────────────────────
+function compute() {
+  const startMonth  = gi('startMonth');
+  const startYear   = gi('startYear');
+  const numMonths   = Math.max(1, Math.min(60, gi('numMonths')));
+  const callsPerDay = g('callsPerDay');
+  const trialRate   = g('trialRate')   / 100;
+  const convRate    = g('convRate')    / 100;
+  const churnRate   = g('churnRate')   / 100;
+  const planPrice   = g('planPrice');
+  const grossMargin = g('grossMargin') / 100;
+  const fxRate      = g('fxRate');
+  const callerPKR   = g('callerSalaryPKR');
+  const lgPKR       = g('lgSalaryPKR');
+  const commission  = g('commission');
+  const lgComm      = g('lgCommission');
+  const lgMeetings  = g('lgMeetings');
+
+  const callerUSD = callerPKR / fxRate;
+  const lgUSD     = lgPKR    / fxRate;
+
+  // Update PKR → USD displays
+  document.getElementById('callerSalaryUSD').textContent = fmt(callerUSD);
+  document.getElementById('lgSalaryUSD').textContent     = fmt(lgUSD);
+
+  const labels = [];
+  const d = {
+    calls:[], trials:[], paid:[], churned:[], active:[],
+    mrr:[], gp:[], callerSal:[], callerComm:[], lgSal:[], lgComm:[], totalCost:[], net:[]
+  };
+
+  let prevActive = 0, prevTrials = 0;
+
+  for (let m = 0; m < numMonths; m++) {
+    labels.push(getMonthLabel(startMonth, startYear, m));
+    const nc = getHC(m, 'caller');
+    const nl = getHC(m, 'lg');
+
+    const calls    = nc * callsPerDay * WORKING_DAYS;
+    const trials   = Math.round(calls * trialRate);
+    const paid     = m === 0 ? 0 : Math.round(prevTrials * convRate);
+    const churned  = Math.round(prevActive * churnRate);
+    const active   = Math.max(0, prevActive + paid - churned);
+
+    const mrr      = active * planPrice;
+    const gp       = mrr * grossMargin;
+    const cSal     = nc * callerUSD;
+    const cComm    = m === 0 ? 0 : paid * commission;
+    const lSal     = nl * lgUSD;
+    const lComm    = nl * lgMeetings * lgComm;
+    const tCost    = cSal + cComm + lSal + lComm;
+    const net      = gp - tCost;
+
+    d.calls.push(calls);   d.trials.push(trials); d.paid.push(paid);
+    d.churned.push(churned); d.active.push(active); d.mrr.push(mrr);
+    d.gp.push(gp);         d.callerSal.push(cSal); d.callerComm.push(cComm);
+    d.lgSal.push(lSal);    d.lgComm.push(lComm);   d.totalCost.push(tCost);
+    d.net.push(net);
+
+    prevActive = active; prevTrials = trials;
+  }
+
+  const sum = arr => arr.reduce((a,b)=>a+b,0);
+
+  // KPI
+  const totalRev  = sum(d.mrr);
+  const totalNet  = sum(d.net);
+  const finalCust = d.active[numMonths-1];
+  const gpPerCust = planPrice * grossMargin;
+  const m1Cost    = d.totalCost[0];
+  const breakEven = gpPerCust > 0 ? Math.ceil(m1Cost / gpPerCust) : '--';
+
+  document.getElementById('kpi-revenue').textContent   = fmt(totalRev);
+  document.getElementById('kpi-customers').textContent = fmtN(finalCust);
+  document.getElementById('kpi-breakeven').textContent = breakEven;
+  const pe = document.getElementById('kpi-profit');
+  pe.textContent = fmt(totalNet);
+  pe.className   = 'kpi-value ' + (totalNet >= 0 ? 'positive' : 'negative');
+
+  // Chart subtitle
+  document.getElementById('chartSubLabel').textContent =
+    `${getMonthLabel(startMonth, startYear, 0)} – ${getMonthLabel(startMonth, startYear, numMonths-1)}  ·  Updates live`;
+
+  // Charts — limit x labels to 24 for readability, show every Nth
+  const maxLabels = 24;
+  const step = numMonths > maxLabels ? Math.ceil(numMonths / maxLabels) : 1;
+  const sparseLabels = labels.filter((_, i) => i % step === 0 || i === numMonths-1);
+
+  function sparseData(arr) {
+    return arr.filter((_, i) => i % step === 0 || i === numMonths-1);
+  }
+
+  mainChart.data.labels              = sparseLabels;
+  mainChart.data.datasets[0].data    = sparseData(d.mrr);
+  mainChart.data.datasets[1].data    = sparseData(d.totalCost);
+  mainChart.data.datasets[2].data    = sparseData(d.net);
+  mainChart.update('none');
+
+  customerChart.data.labels             = sparseLabels;
+  customerChart.data.datasets[0].data   = sparseData(d.active);
+  customerChart.update('none');
+
+  costChart.data.labels              = sparseLabels;
+  costChart.data.datasets[0].data    = sparseData(d.callerSal);
+  costChart.data.datasets[1].data    = sparseData(d.callerComm);
+  costChart.data.datasets[2].data    = sparseData(d.lgSal);
+  costChart.data.datasets[3].data    = sparseData(d.lgComm);
+  costChart.update('none');
+
+  // Unit economics
+  document.getElementById('ue-rev').textContent    = fmt(planPrice);
+  document.getElementById('ue-infra').textContent  = fmt(planPrice * (1 - grossMargin));
+  document.getElementById('ue-gp').textContent     = fmt(gpPerCust);
+  document.getElementById('ue-csal').textContent   = fmt(getHC(0,'caller') * callerUSD);
+  document.getElementById('ue-ccomm').textContent  = '—';
+  document.getElementById('ue-lgsal').textContent  = fmt(getHC(0,'lg') * lgUSD);
+  document.getElementById('ue-lgcomm').textContent = fmt(getHC(0,'lg') * lgMeetings * lgComm);
+  document.getElementById('ue-total').textContent  = fmt(m1Cost);
+  document.getElementById('ue-be').textContent     = breakEven;
+  document.getElementById('ue-above').textContent  = fmt(gpPerCust) + '/mo';
+  document.getElementById('ue-annual').textContent = fmt(gpPerCust * 12) + '/yr';
+
+  // Table
+  renderTable(d, labels, numMonths, sum);
+
+  return { d, labels, numMonths, startMonth, startYear, sum,
+           callerUSD, lgUSD, callerPKR, lgPKR };
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────
+function renderTable(d, labels, numMonths, sum) {
+  // Save existing headcount inputs before wipe
+  const saved = {};
+  for (let m = 0; m < numMonths; m++) {
+    const ci = document.getElementById('hc-caller-' + m);
+    const li = document.getElementById('hc-lg-' + m);
+    if (ci) saved['caller'+m] = parseInt(ci.value)||1;
+    if (li) saved['lg'+m]     = parseInt(li.value)||1;
+  }
+  Object.entries(saved).forEach(([k,v]) => {
+    const role = k.startsWith('caller') ? 'caller' : 'lg';
+    const m    = parseInt(k.replace('caller','').replace('lg',''));
+    setHC(m, role, v);
+  });
+
+  // Header
+  const head = document.getElementById('tableHead');
+  let hh = '<th>Metric</th>';
+  for (let m = 0; m < numMonths; m++) hh += `<th>${labels[m]}</th>`;
+  hh += '<th class="cumul-h">TOTAL</th>';
+  head.innerHTML = hh;
+
+  // Body
+  const body = document.getElementById('tableBody');
+
+  function secRow(label) {
+    return `<tr class="section-row"><td colspan="${numMonths+2}">${label}</td></tr>`;
+  }
+
+  function dataRow(label, arr, isMoney=true, cssClass='', cumOverride=null) {
+    const cumVal = cumOverride !== null ? cumOverride : sum(arr);
+    let cells = arr.map((v, i) => {
+      const cls1 = i === 0 ? 'month-1' : '';
+      const cls2 = isMoney && v < 0 ? 'negative-val' : (isMoney && v > 0 && label.includes('Net') ? 'positive-val' : '');
+      const txt  = isMoney ? fmt(v) : fmtN(v);
+      return `<td class="${cls1}"><span class="${cls2}">${txt}</span></td>`;
+    }).join('');
+    const cumCls = isMoney && cumVal < 0 ? 'negative-val' : '';
+    const cumTxt = isMoney ? fmt(cumVal) : fmtN(cumVal);
+    return `<tr class="${cssClass}"><td>${label}</td>${cells}<td class="cumul"><span class="${cumCls}">${cumTxt}</span></td></tr>`;
+  }
+
+  function hcRow(label, role) {
+    let cells = '';
+    for (let m = 0; m < numMonths; m++) {
+      const v = getHC(m, role);
+      cells += `<td><input type="number" class="hc-input" id="hc-${role}-${m}" value="${v}" min="0" oninput="setHC(${m},'${role}',this.value);compute()"></td>`;
+    }
+    return `<tr><td style="color:var(--gold);font-weight:600">${label}</td>${cells}<td class="cumul" style="color:var(--text-dimmer)">—</td></tr>`;
+  }
+
+  let html = '';
+  html += secRow('HEADCOUNT  ·  Edit orange cells to change team size per month');
+  html += hcRow('Cold Callers', 'caller');
+  html += hcRow('Lead Gen Specialists', 'lg');
+
+  html += secRow('CALLING ACTIVITY');
+  html += dataRow('Total calls made', d.calls, false);
+  html += dataRow('New trial signups', d.trials, false);
+
+  html += secRow('CUSTOMER PIPELINE');
+  html += dataRow('New paid signups (lag 1 month)', d.paid, false);
+  html += dataRow('Churned customers', d.churned, false);
+  html += dataRow('Active paying customers', d.active, false, 'total-row', d.active[numMonths-1]);
+
+  html += secRow('REVENUE');
+  html += dataRow('Monthly Recurring Revenue (MRR)', d.mrr, true, 'total-row');
+  html += dataRow('  Gross Profit (after infra)', d.gp);
+
+  html += secRow('TEAM COSTS');
+  html += dataRow('  Cold caller salaries', d.callerSal);
+  html += dataRow('  Cold caller commissions', d.callerComm);
+  html += dataRow('  Lead gen salaries', d.lgSal);
+  html += dataRow('  Lead gen commissions', d.lgComm);
+  html += dataRow('Total Team Cost', d.totalCost, true, 'total-row');
+
+  html += secRow('BOTTOM LINE');
+  html += dataRow('NET PROFIT', d.net, true, 'net-row');
+
+  body.innerHTML = html;
+}
+
+// ── RESET ─────────────────────────────────────────────────────────────────
+function resetDefaults() {
+  Object.entries(DEFAULTS).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+  hcStore = {};
+  compute();
+}
+
+// ── EXCEL EXPORT ──────────────────────────────────────────────────────────
+function downloadExcel() {
+  const res = compute();
+  const { d, labels, numMonths, sum, callerUSD, lgUSD, callerPKR, lgPKR } = res;
+
+  const wb = XLSX.utils.book_new();
+
+  // Tab 1: Assumptions
+  const aRows = [
+    ['TELLGENCE — Forecast Assumptions'],
+    ['Prepared by Zain Ali', '', 'Confidential'],
+    [],
+    ['ASSUMPTION', 'VALUE', 'UNIT'],
+    ['Calls per caller / day',     g('callsPerDay'),    'calls'],
+    ['Working days / month',       WORKING_DAYS,         'days (fixed)'],
+    ['Trial signup rate',          g('trialRate')+'%',  ''],
+    ['Trial-to-paid conversion',   g('convRate')+'%',   ''],
+    ['Monthly churn rate',         g('churnRate')+'%',  ''],
+    ['Plan price',                 '$'+g('planPrice'),  'USD/mo'],
+    ['Gross margin',               g('grossMargin')+'%',''],
+    ['PKR / USD rate',             g('fxRate'),         ''],
+    ['Caller salary (PKR)',        g('callerSalaryPKR'),'PKR'],
+    ['Caller salary (USD)',        '$'+callerUSD.toFixed(0), 'USD'],
+    ['Commission / paid signup',   '$'+g('commission'), 'USD'],
+    ['LG salary (PKR)',            g('lgSalaryPKR'),    'PKR'],
+    ['LG salary (USD)',            '$'+lgUSD.toFixed(0),'USD'],
+    ['LG commission / meeting',    '$'+g('lgCommission'),'USD'],
+    ['LG meetings / specialist',   g('lgMeetings'),     'meetings/mo'],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(aRows);
+  ws1['!cols'] = [{wch:36},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Assumptions');
+
+  // Tab 2: Forecast
+  const header = ['Metric', ...labels, 'TOTAL / FINAL'];
+  const sumRow = arr => [...arr, sum(arr)];
+  const lastRow= arr => [...arr, arr[arr.length-1]];
+
+  const hcCallers = labels.map((_,m) => getHC(m,'caller'));
+  const hcLG      = labels.map((_,m) => getHC(m,'lg'));
+
+  const fRows = [
+    ['TELLGENCE — Detailed Forecast'],
+    ['Prepared by Zain Ali  ·  All figures USD'],
+    [],
+    header,
+    ['— HEADCOUNT —'],
+    ['Cold Callers', ...hcCallers, '—'],
+    ['Lead Gen Specialists', ...hcLG, '—'],
+    [],
+    ['— CALLING ACTIVITY —'],
+    ['Total calls made', ...sumRow(d.calls)],
+    ['New trial signups', ...sumRow(d.trials)],
+    [],
+    ['— CUSTOMER PIPELINE —'],
+    ['New paid signups', ...sumRow(d.paid)],
+    ['Churned customers', ...sumRow(d.churned)],
+    ['Active paying customers', ...lastRow(d.active)],
+    [],
+    ['— REVENUE —'],
+    ['MRR', ...sumRow(d.mrr)],
+    ['Gross Profit', ...sumRow(d.gp)],
+    [],
+    ['— TEAM COSTS —'],
+    ['Cold caller salaries', ...sumRow(d.callerSal)],
+    ['Cold caller commissions', ...sumRow(d.callerComm)],
+    ['Lead gen salaries', ...sumRow(d.lgSal)],
+    ['Lead gen commissions', ...sumRow(d.lgComm)],
+    ['Total Team Cost', ...sumRow(d.totalCost)],
+    [],
+    ['NET PROFIT', ...sumRow(d.net)],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(fRows);
+  ws2['!cols'] = [{wch:32}, ...Array(numMonths+1).fill({wch:13})];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Forecast');
+
+  // Tab 3: Unit Economics
+  const gpPerCust = g('planPrice') * (g('grossMargin')/100);
+  const m1Cost    = d.totalCost[0];
+  const be        = gpPerCust > 0 ? Math.ceil(m1Cost / gpPerCust) : 'N/A';
+  const ueRows = [
+    ['TELLGENCE — Unit Economics'],
+    ['Prepared by Zain Ali'],
+    [],
+    ['PER CUSTOMER', ''],
+    ['Revenue / customer / month', '$'+g('planPrice')],
+    ['Infrastructure cost', '$'+(g('planPrice')*(1-g('grossMargin')/100)).toFixed(0)],
+    ['Gross profit / customer / month', '$'+gpPerCust.toFixed(0)],
+    [],
+    ['MONTHLY TEAM COST (Month 1)', ''],
+    ['Cold caller salaries', '$'+d.callerSal[0].toFixed(0)],
+    ['Cold caller commissions', '$0 (none in Month 1)'],
+    ['Lead gen salaries', '$'+d.lgSal[0].toFixed(0)],
+    ['Lead gen commissions', '$'+d.lgComm[0].toFixed(0)],
+    ['Total', '$'+m1Cost.toFixed(0)],
+    [],
+    ['BREAK-EVEN', ''],
+    ['Customers to cover team cost', be],
+    ['Gross profit per extra customer / month', '$'+gpPerCust.toFixed(0)],
+    ['Annual value per customer', '$'+(gpPerCust*12).toFixed(0)],
+  ];
+  const ws3 = XLSX.utils.aoa_to_sheet(ueRows);
+  ws3['!cols'] = [{wch:38},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Unit Economics');
+
+  XLSX.writeFile(wb, 'Tellgence_Forecast.xlsx');
+}
+
+// ── SIDEBAR TOGGLE ────────────────────────────────────────────────────────
+function toggleSidebar() {
+  const grid   = document.getElementById('mainGrid');
+  const toggle = document.getElementById('sidebarToggle');
+  const collapsed = grid.classList.toggle('sidebar-collapsed');
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+
+  // Move toggle tab to edge
+  toggle.style.left = collapsed ? '0px' : '320px';
+
+  // Flip chevron
+  const icon = toggle.querySelector('svg');
+  icon.style.transform = collapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+
+  // Resize charts after transition completes so they fill new width
+  setTimeout(() => {
+    [mainChart, customerChart, costChart].forEach(c => c && c.resize());
+  }, 340);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  compute();
+  document.querySelectorAll('.sidebar input, .sidebar select').forEach(el => {
+    el.addEventListener('input', compute);
+  });
+  // Position toggle correctly on load
+  document.getElementById('sidebarToggle').style.left = '320px';
+});
+</script>
+</body>
+</html>
